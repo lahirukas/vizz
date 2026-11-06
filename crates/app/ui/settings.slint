@@ -1,0 +1,876 @@
+import { Button, ComboBox, Slider, Switch, ScrollView, Palette } from "std-widgets.slint";
+
+export struct WidgetRow {
+    kind: int,
+    style: int,
+    quality: int,
+    opacity: float,
+}
+
+export struct PaletteSwatch {
+    name: string,
+    a: color,
+    b: color,
+    c: color,
+}
+
+export global Vizz {
+    in property <[[PaletteSwatch]]> palette-rows;
+    in property <[string]> short-kinds;
+    in property <image> preview;
+    in-out property <int> showcase-kind: 1;
+    in-out property <int> showcase-style;
+    in-out property <bool> autostart;
+    in property <[string]> kinds;
+    in property <[string]> styles;
+    in property <[string]> qualities;
+    in property <[string]> widget-qualities;
+    in property <[string]> inputs: ["Playback (what you hear)", "Microphone"];
+    in property <[string]> whistle-inputs: ["Microphone", "Same as visualizers"];
+    in property <[string]> sizes: ["Small", "Medium", "Large", "Wallpaper"];
+    in-out property <[WidgetRow]> widgets;
+    in-out property <int> quality;
+    in-out property <int> style-all;
+    in-out property <int> input;
+    in-out property <int> whistle-input;
+    in-out property <bool> editing;
+    in-out property <bool> pinned;
+    in-out property <bool> topmost;
+    in-out property <bool> fps60: true;
+    in-out property <float> av-offset;
+    in-out property <float> idle-secs: 10;
+    in property <string> status;
+    in property <float> level;
+    in property <float> bpm;
+    in property <float> confidence;
+    in property <float> beat;
+    in property <float> whistle;
+    in property <string> version;
+
+    callback add-widget(int);
+    callback remove-widget(int);
+    callback set-kind(int, int);
+    callback set-style(int, int);
+    callback set-widget-quality(int, int);
+    callback set-opacity(int, float);
+    callback set-size(int, int);
+    callback set-quality(int);
+    callback set-style-all(int);
+    callback set-input(int);
+    callback set-whistle-input(int);
+    callback set-editing(bool);
+    callback set-pinned(bool);
+    callback set-topmost(bool);
+    callback set-fps60(bool);
+    callback set-av-offset(float);
+    callback set-idle(float);
+    callback next-preset();
+    callback open-settings(int);
+    callback quit();
+    callback open-link(string);
+    callback set-showcase(int);
+    callback set-showcase-style(int);
+    callback add-showcase();
+    callback set-autostart(bool);
+}
+
+component Muted inherits Text {
+    color: Palette.foreground.transparentize(0.38);
+    font-size: 12px;
+    wrap: word-wrap;
+}
+
+component Card inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> glyph;
+    min-height: 66px;
+    border-radius: 7px;
+    background: Palette.alternate-background;
+    border-width: 1px;
+    border-color: Palette.border.transparentize(0.4);
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 14px;
+        if root.glyph != "": Text {
+            text: root.glyph;
+            font-family: "Segoe Fluent Icons";
+            font-size: 18px;
+            vertical-alignment: center;
+            color: Palette.foreground;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+            Text {
+                text: root.title;
+                font-size: 14px;
+                color: Palette.foreground;
+            }
+            if root.subtitle != "": Muted { text: root.subtitle; }
+        }
+        HorizontalLayout {
+            alignment: end;
+            spacing: 8px;
+            horizontal-stretch: 0;
+            @children
+        }
+    }
+}
+
+component PageTitle inherits Text {
+    font-size: 28px;
+    font-weight: 600;
+    color: Palette.foreground;
+}
+
+component Section inherits Text {
+    font-size: 14px;
+    font-weight: 600;
+    color: Palette.foreground;
+}
+
+component NavItem inherits Rectangle {
+    in property <string> text;
+    in property <string> glyph;
+    in property <bool> selected;
+    callback clicked;
+    height: 38px;
+    border-radius: 5px;
+    background: root.selected ? Palette.foreground.transparentize(0.92) : ta.has-hover ? Palette.foreground.transparentize(0.95) : transparent;
+    animate background { duration: 120ms; }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+    Rectangle {
+        x: 0;
+        width: 3px;
+        height: root.selected ? 16px : 0px;
+        y: (parent.height - self.height) / 2;
+        border-radius: 1.5px;
+        background: Palette.accent-background;
+        animate height { duration: 180ms; easing: ease-out; }
+    }
+    HorizontalLayout {
+        padding-left: 16px;
+        spacing: 14px;
+        alignment: start;
+        Text {
+            text: root.glyph;
+            font-family: "Segoe Fluent Icons";
+            font-size: 16px;
+            vertical-alignment: center;
+            color: Palette.foreground;
+        }
+        Text {
+            text: root.text;
+            font-size: 14px;
+            vertical-alignment: center;
+            color: Palette.foreground;
+        }
+    }
+}
+
+component Meter inherits Rectangle {
+    in property <float> value;
+    in property <brush> fill: Palette.accent-background;
+    height: 6px;
+    border-radius: 3px;
+    background: Palette.foreground.transparentize(0.88);
+    Rectangle {
+        x: 0;
+        width: parent.width * clamp(root.value, 0, 1);
+        border-radius: 3px;
+        background: root.fill;
+        animate width { duration: 80ms; }
+    }
+}
+
+component BeatDot inherits Rectangle {
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    background: Palette.accent-background.transparentize(1 - clamp(0.25 + Vizz.beat * 0.75, 0, 1));
+}
+
+component Swatch inherits Rectangle {
+    in property <PaletteSwatch> pal;
+    in property <bool> selected;
+    callback clicked;
+    width: 80px;
+    height: 54px;
+    border-radius: 8px;
+    background: ta.has-hover ? Palette.foreground.transparentize(0.9) : Palette.foreground.transparentize(0.95);
+    border-width: root.selected ? 2px : 1px;
+    border-color: root.selected ? Palette.accent-background : Palette.border.transparentize(0.3);
+    animate border-color { duration: 120ms; }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    VerticalLayout {
+        padding: 6px;
+        spacing: 4px;
+        HorizontalLayout {
+            height: 20px;
+            Rectangle {
+                background: root.pal.a;
+                border-top-left-radius: 5px;
+                border-bottom-left-radius: 5px;
+            }
+            Rectangle { background: root.pal.b; }
+            Rectangle {
+                background: root.pal.c;
+                border-top-right-radius: 5px;
+                border-bottom-right-radius: 5px;
+            }
+        }
+        Text {
+            text: root.pal.name;
+            font-size: 11px;
+            horizontal-alignment: center;
+            color: Palette.foreground;
+        }
+    }
+}
+
+component SwatchRow inherits VerticalLayout {
+    in property <int> current;
+    callback picked(int);
+    spacing: 6px;
+    for row[r] in Vizz.palette-rows: HorizontalLayout {
+        spacing: 6px;
+        alignment: start;
+        for p[c] in row: Swatch {
+            pal: p;
+            selected: r * 6 + c == root.current;
+            clicked => { root.picked(r * 6 + c); }
+        }
+    }
+}
+
+component Chip inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked;
+    height: 34px;
+    border-radius: 17px;
+    background: root.selected ? Palette.accent-background : ta.has-hover ? Palette.foreground.transparentize(0.88) : Palette.foreground.transparentize(0.94);
+    animate background { duration: 120ms; }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    Text {
+        text: root.text;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        color: root.selected ? Palette.accent-foreground : Palette.foreground;
+    }
+}
+
+component WidgetCard inherits Rectangle {
+    in property <int> index;
+    in property <WidgetRow> data;
+    border-radius: 7px;
+    background: Palette.alternate-background;
+    border-width: 1px;
+    border-color: Palette.border.transparentize(0.4);
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 10px;
+            Text {
+                text: "\u{E7F4}";
+                font-family: "Segoe Fluent Icons";
+                font-size: 18px;
+                vertical-alignment: center;
+                color: Palette.accent-background;
+            }
+            Text {
+                text: "Widget " + (root.index + 1) + " · " + Vizz.kinds[root.data.kind];
+                font-size: 15px;
+                font-weight: 600;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                color: Palette.foreground;
+            }
+            Button {
+                text: "Remove";
+                clicked => { Vizz.remove-widget(root.index); }
+            }
+        }
+        GridLayout {
+            spacing-horizontal: 14px;
+            spacing-vertical: 10px;
+            Row {
+                Muted { text: "Design"; vertical-alignment: center; }
+                ComboBox {
+                    model: Vizz.kinds;
+                    current-index: root.data.kind;
+                    selected => { Vizz.set-kind(root.index, self.current-index); }
+                }
+            }
+            Row {
+                Muted { text: "Colors"; vertical-alignment: center; }
+                SwatchRow {
+                    colspan: 3;
+                    current: root.data.style;
+                    picked(i) => { Vizz.set-style(root.index, i); }
+                }
+            }
+            Row {
+                Muted { text: "Quality"; vertical-alignment: center; }
+                ComboBox {
+                    model: Vizz.widget-qualities;
+                    current-index: root.data.quality;
+                    selected => { Vizz.set-widget-quality(root.index, self.current-index); }
+                }
+                Muted { text: "Size"; vertical-alignment: center; }
+                HorizontalLayout {
+                    spacing: 6px;
+                    for s[k] in Vizz.sizes: Button {
+                        text: s;
+                        clicked => { Vizz.set-size(root.index, k); }
+                    }
+                }
+            }
+            Row {
+                Muted { text: "Opacity"; vertical-alignment: center; }
+                Slider {
+                    minimum: 0.1;
+                    maximum: 1.0;
+                    value: root.data.opacity;
+                    changed(v) => { Vizz.set-opacity(root.index, v); }
+                }
+            }
+        }
+    }
+}
+
+component WidgetsPage inherits VerticalLayout {
+    spacing: 12px;
+    PageTitle { text: "Widgets"; }
+    Muted { text: "Every visualizer on your desktop. Turn on Edit layout to drag and resize them; press Esc on a widget to finish."; }
+    Card {
+        title: "Edit layout";
+        subtitle: "Widgets become movable and resizable";
+        glyph: "\u{E70F}";
+        Switch {
+            checked <=> Vizz.editing;
+            toggled => { Vizz.set-editing(self.checked); }
+        }
+    }
+    Card {
+        title: "Add a widget";
+        subtitle: "Pick a design; it appears on your desktop in edit mode";
+        glyph: "\u{E710}";
+        add := ComboBox {
+            model: Vizz.kinds;
+            current-index: 0;
+        }
+        Button {
+            text: "Add";
+            primary: true;
+            clicked => { Vizz.add-widget(add.current-index); }
+        }
+    }
+    Section { text: "On your desktop"; }
+    for row[i] in Vizz.widgets: WidgetCard {
+        index: i;
+        data: row;
+    }
+    if Vizz.widgets.length == 0: Muted { text: "No widgets yet. Add one above."; }
+}
+
+component AudioPage inherits VerticalLayout {
+    spacing: 12px;
+    PageTitle { text: "Audio"; }
+    Rectangle {
+        border-radius: 7px;
+        background: Palette.alternate-background;
+        border-width: 1px;
+        border-color: Palette.border.transparentize(0.4);
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+            HorizontalLayout {
+                spacing: 12px;
+                BeatDot { }
+                Text {
+                    text: Vizz.bpm > 0 ? round(Vizz.bpm) + " BPM" : "Listening…";
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: Palette.foreground;
+                    vertical-alignment: center;
+                }
+                Muted {
+                    text: "beat lock " + round(Vizz.confidence * 100) + "%";
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Muted { text: "Level"; width: 60px; }
+                Meter { value: Vizz.level; y: 5px; }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Muted { text: "Whistle"; width: 60px; }
+                Meter { value: Vizz.whistle; fill: #ff3cc8; y: 5px; }
+            }
+            if Vizz.status != "": Text {
+                text: Vizz.status;
+                color: #e5484d;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+    }
+    Section { text: "Input"; }
+    Card {
+        title: "Visualizers listen to";
+        subtitle: "Playback follows whatever your PC is playing, including Bluetooth headphones";
+        glyph: "\u{E767}";
+        ComboBox {
+            model: Vizz.inputs;
+            current-index <=> Vizz.input;
+            selected => { Vizz.set-input(self.current-index); }
+        }
+    }
+    Card {
+        title: "Whistle Sketch listens to";
+        subtitle: "Use the microphone so you can whistle while music plays";
+        glyph: "\u{E720}";
+        ComboBox {
+            model: Vizz.whistle-inputs;
+            current-index <=> Vizz.whistle-input;
+            selected => { Vizz.set-whistle-input(self.current-index); }
+        }
+    }
+    Section { text: "Timing"; }
+    Card {
+        title: "Visual delay: " + round(Vizz.av-offset) + " ms";
+        subtitle: "Raise it if visuals land before the beat you hear (Bluetooth adds about 150-250 ms)";
+        glyph: "\u{E916}";
+        Slider {
+            width: 220px;
+            minimum: -200;
+            maximum: 500;
+            value <=> Vizz.av-offset;
+            released(v) => { Vizz.set-av-offset(v); }
+        }
+    }
+}
+
+component AppearancePage inherits VerticalLayout {
+    spacing: 12px;
+    PageTitle { text: "Appearance & startup"; }
+    Rectangle {
+        border-radius: 7px;
+        background: Palette.alternate-background;
+        border-width: 1px;
+        border-color: Palette.border.transparentize(0.4);
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+            Text {
+                text: "Colors for all widgets";
+                font-size: 14px;
+                color: Palette.foreground;
+            }
+            SwatchRow {
+                current: Vizz.style-all;
+                picked(i) => { Vizz.set-style-all(i); }
+            }
+        }
+    }
+    Card {
+        title: "Quality";
+        subtitle: "Render resolution and detail for every widget";
+        glyph: "\u{E9E9}";
+        ComboBox {
+            model: Vizz.qualities;
+            current-index <=> Vizz.quality;
+            selected => { Vizz.set-quality(self.current-index); }
+        }
+    }
+    Card {
+        title: "Smooth 60 fps";
+        subtitle: "Off runs at 30 fps to save power (applies after restart)";
+        glyph: "\u{EC4A}";
+        Switch {
+            checked <=> Vizz.fps60;
+            toggled => { Vizz.set-fps60(self.checked); }
+        }
+    }
+    Section { text: "Startup"; }
+    Card {
+        title: "Start with Windows";
+        subtitle: "Vizz starts quietly in the tray when you sign in";
+        glyph: "\u{E7E8}";
+        Switch {
+            checked <=> Vizz.autostart;
+            toggled => { Vizz.set-autostart(self.checked); }
+        }
+    }
+    Section { text: "Placement"; }
+    Card {
+        title: "Pin to desktop";
+        subtitle: "Widgets sit behind your windows like wallpaper";
+        glyph: "\u{E718}";
+        Switch {
+            checked <=> Vizz.pinned;
+            toggled => { Vizz.set-pinned(self.checked); }
+        }
+    }
+    Card {
+        title: "Always on top";
+        subtitle: "Widgets float above other windows";
+        glyph: "\u{E8A7}";
+        Switch {
+            checked <=> Vizz.topmost;
+            toggled => { Vizz.set-topmost(self.checked); }
+        }
+    }
+    Card {
+        title: "Sleep after " + round(Vizz.idle-secs) + " s of silence";
+        subtitle: "Widgets fade out and stop using the GPU";
+        glyph: "\u{E708}";
+        Slider {
+            width: 220px;
+            minimum: 2;
+            maximum: 120;
+            value <=> Vizz.idle-secs;
+            released(v) => { Vizz.set-idle(v); }
+        }
+    }
+    Card {
+        title: "Flux presets";
+        subtitle: "Jump to the next look in Flux widgets";
+        glyph: "\u{E72A}";
+        Button {
+            text: "Next preset";
+            clicked => { Vizz.next-preset(); }
+        }
+    }
+}
+
+component AboutPage inherits VerticalLayout {
+    spacing: 12px;
+    PageTitle { text: "About"; }
+    Rectangle {
+        border-radius: 7px;
+        background: Palette.alternate-background;
+        border-width: 1px;
+        border-color: Palette.border.transparentize(0.4);
+        VerticalLayout {
+            padding: 24px;
+            spacing: 10px;
+            alignment: start;
+            Image {
+                source: @image-url("../../../assets/logo/vizz_logo.png");
+                height: 64px;
+                image-fit: contain;
+                horizontal-alignment: left;
+            }
+            Text {
+                text: "Vizz " + Vizz.version;
+                font-size: 18px;
+                font-weight: 600;
+                color: Palette.foreground;
+            }
+            Muted { text: "Beat-locked desktop visualizers. Real-time tempo tracking, whistle drawing and 3D math art, rendered on your GPU."; }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                Text {
+                    text: "\u{E71B}";
+                    font-family: "Segoe Fluent Icons";
+                    font-size: 14px;
+                    vertical-alignment: center;
+                    color: Palette.accent-background;
+                }
+                link := Text {
+                    text: "github.com/lahirukas";
+                    font-size: 14px;
+                    color: Palette.accent-background;
+                    font-weight: link-ta.has-hover ? 600 : 400;
+                    link-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { Vizz.open-link("https://github.com/lahirukas/"); }
+                    }
+                }
+            }
+            Muted { text: "Free software under the GNU GPL v3.0. Settings UI built with Slint (slint.dev)."; }
+        }
+    }
+}
+
+component HomePage inherits VerticalLayout {
+    spacing: 14px;
+    PageTitle { text: "Showcase"; }
+    Muted { text: "Every design reacts live to what you are hearing. Pick one, choose its colors, then put it on your desktop."; }
+    Rectangle {
+        height: 360px;
+        border-radius: 10px;
+        clip: true;
+        background: #101014;
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: Vizz.preview;
+            image-fit: cover;
+        }
+        Rectangle {
+            x: 12px;
+            y: 12px;
+            width: 128px;
+            height: 30px;
+            border-radius: 15px;
+            background: #000000a0;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 8px;
+                alignment: start;
+                BeatDot { y: 8px; }
+                Text {
+                    text: Vizz.bpm > 0 ? round(Vizz.bpm) + " BPM" : "Listening…";
+                    color: white;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+    Section { text: "Design"; }
+    HorizontalLayout {
+        spacing: 8px;
+        for k[i] in Vizz.short-kinds: Chip {
+            text: k;
+            selected: i == Vizz.showcase-kind;
+            clicked => { Vizz.set-showcase(i); }
+        }
+    }
+    Section { text: "Colors"; }
+    SwatchRow {
+        current: Vizz.showcase-style;
+        picked(i) => { Vizz.set-showcase-style(i); }
+    }
+    HorizontalLayout {
+        alignment: space-between;
+        Muted {
+            text: "Vizz keeps running in the tray when you close this window.";
+            vertical-alignment: center;
+        }
+        Button {
+            text: "Add to desktop";
+            primary: true;
+            clicked => { Vizz.add-showcase(); }
+        }
+    }
+}
+
+export component SettingsWindow inherits Window {
+    title: "Vizz";
+    icon: @image-url("../../../assets/logo/vizz_icon_256.png");
+    preferred-width: 940px;
+    preferred-height: 680px;
+    min-width: 680px;
+    min-height: 480px;
+    background: Palette.background;
+    in-out property <int> page: 0;
+    HorizontalLayout {
+        VerticalLayout {
+            width: 240px;
+            padding: 12px;
+            padding-top: 16px;
+            spacing: 4px;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-bottom: 14px;
+                spacing: 10px;
+                Image {
+                    source: @image-url("../../../assets/logo/vizz_logo.png");
+                    height: 26px;
+                    width: 80px;
+                    image-fit: contain;
+                }
+            }
+            NavItem {
+                text: "Showcase";
+                glyph: "\u{E80F}";
+                selected: root.page == 0;
+                clicked => { root.page = 0; }
+            }
+            NavItem {
+                text: "Widgets";
+                glyph: "\u{F0E2}";
+                selected: root.page == 1;
+                clicked => { root.page = 1; }
+            }
+            NavItem {
+                text: "Audio";
+                glyph: "\u{E767}";
+                selected: root.page == 2;
+                clicked => { root.page = 2; }
+            }
+            NavItem {
+                text: "Appearance";
+                glyph: "\u{E790}";
+                selected: root.page == 3;
+                clicked => { root.page = 3; }
+            }
+            Rectangle { vertical-stretch: 1; }
+            NavItem {
+                text: "About";
+                glyph: "\u{E946}";
+                selected: root.page == 4;
+                clicked => { root.page = 4; }
+            }
+        }
+        ScrollView {
+            VerticalLayout {
+                padding: 28px;
+                padding-top: 24px;
+                alignment: start;
+                if root.page == 0: HomePage { }
+                if root.page == 1: WidgetsPage { }
+                if root.page == 2: AudioPage { }
+                if root.page == 3: AppearancePage { }
+                if root.page == 4: AboutPage { }
+            }
+        }
+    }
+}
+
+component Toggle inherits Rectangle {
+    in property <string> text;
+    in property <string> glyph;
+    in property <bool> on;
+    callback toggled;
+    height: 64px;
+    border-radius: 6px;
+    background: root.on ? Palette.accent-background : ta.has-hover ? Palette.foreground.transparentize(0.88) : Palette.foreground.transparentize(0.93);
+    animate background { duration: 120ms; }
+    ta := TouchArea {
+        clicked => { root.toggled(); }
+    }
+    VerticalLayout {
+        padding: 8px;
+        spacing: 4px;
+        alignment: center;
+        Text {
+            text: root.glyph;
+            font-family: "Segoe Fluent Icons";
+            font-size: 16px;
+            horizontal-alignment: center;
+            color: root.on ? Palette.accent-foreground : Palette.foreground;
+        }
+        Text {
+            text: root.text;
+            font-size: 12px;
+            horizontal-alignment: center;
+            color: root.on ? Palette.accent-foreground : Palette.foreground;
+        }
+    }
+}
+
+export component Flyout inherits Window {
+    title: "Vizz quick settings";
+    no-frame: true;
+    always-on-top: true;
+    width: 360px;
+    height: 316px;
+    background: Palette.background;
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 10px;
+            Image {
+                source: @image-url("../../../assets/logo/vizz_logo.png");
+                height: 22px;
+                width: 70px;
+                image-fit: contain;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            BeatDot { y: 4px; }
+            Text {
+                text: Vizz.bpm > 0 ? round(Vizz.bpm) + " BPM" : "Listening…";
+                font-size: 14px;
+                font-weight: 600;
+                vertical-alignment: center;
+                color: Palette.foreground;
+            }
+        }
+        Meter { value: Vizz.level; }
+        GridLayout {
+            spacing: 8px;
+            Row {
+                Toggle {
+                    text: "Edit layout";
+                    glyph: "\u{E70F}";
+                    on: Vizz.editing;
+                    toggled => { Vizz.set-editing(!Vizz.editing); }
+                }
+                Toggle {
+                    text: "Pin to desktop";
+                    glyph: "\u{E718}";
+                    on: Vizz.pinned;
+                    toggled => { Vizz.set-pinned(!Vizz.pinned); }
+                }
+                Toggle {
+                    text: "On top";
+                    glyph: "\u{E8A7}";
+                    on: Vizz.topmost;
+                    toggled => { Vizz.set-topmost(!Vizz.topmost); }
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            Muted { text: "Input"; vertical-alignment: center; width: 60px; }
+            ComboBox {
+                model: Vizz.inputs;
+                current-index <=> Vizz.input;
+                selected => { Vizz.set-input(self.current-index); }
+            }
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            Muted { text: "Quality"; vertical-alignment: center; width: 60px; }
+            ComboBox {
+                model: Vizz.qualities;
+                current-index <=> Vizz.quality;
+                selected => { Vizz.set-quality(self.current-index); }
+            }
+        }
+        Rectangle { height: 1px; background: Palette.border.transparentize(0.4); }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Add widget";
+                clicked => { Vizz.open-settings(0); }
+            }
+            Button {
+                text: "Settings";
+                primary: true;
+                horizontal-stretch: 1;
+                clicked => { Vizz.open-settings(-1); }
+            }
+            Button {
+                text: "Quit";
+                clicked => { Vizz.quit(); }
+            }
+        }
+    }
+}

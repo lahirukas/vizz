@@ -1,0 +1,8 @@
+target/
+shots/
+*.wav
+*.log
+*.tmp
+SPECS.md
+*.pfx
+dist/

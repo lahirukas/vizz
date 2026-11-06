@@ -1,0 +1,27 @@
+1 ICON "../../../assets/logo/vizz.ico"
+
+1 VERSIONINFO
+FILEVERSION 0,1,0,1
+PRODUCTVERSION 0,1,0,1
+FILEOS 0x40004
+FILETYPE 0x1
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Lahiru Kas"
+      VALUE "FileDescription", "Vizz"
+      VALUE "FileVersion", "0.1.0-alpha.1"
+      VALUE "InternalName", "vizz"
+      VALUE "LegalCopyright", "Copyright (C) 2026 Lahiru Kas. Licensed under GPL-3.0."
+      VALUE "OriginalFilename", "vizz.exe"
+      VALUE "ProductName", "Vizz"
+      VALUE "ProductVersion", "0.1.0-alpha.1"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

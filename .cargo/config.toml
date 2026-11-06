@@ -1,0 +1,15 @@
+[profile.dev]
+debug = 0
+incremental = true
+opt-level = 1            # DSP must be fast enough to test in real time
+
+[profile.dev.package."*"]
+opt-level = 2            # optimize dependencies once, they rarely rebuild
+debug = false
+
+[profile.release]
+opt-level = 3
+lto = "thin"             # use "fat" only for the final shipping build
+codegen-units = 4
+panic = "abort"
+strip = true
